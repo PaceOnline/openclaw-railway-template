@@ -215,9 +215,8 @@ async function startGateway() {
   fs.mkdirSync(STATE_DIR, { recursive: true });
   fs.mkdirSync(WORKSPACE_DIR, { recursive: true });
 
-  try {
-    await runCmd(OPENCLAW_NODE, clawArgs(["gateway", "stop"]));
-  } catch {}
+  const stopResult = await runCmd(OPENCLAW_NODE, clawArgs(["gateway", "stop"]));
+  log.info("gateway", `stop existing gateway exit=${stopResult.code}`);
 
   const args = [
     "gateway",
