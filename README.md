@@ -12,6 +12,19 @@
 - A friendly **Setup Wizard** at `/setup` (protected by a password)
 - Optional **Web Terminal** at `/tui` for browser-based TUI access
 - Persistent state via **Railway Volume** (so config/credentials/memory survive redeploys)
+- A synced PaceOnline `scripts/` toolkit inside `/data/workspace/scripts`
+
+## PaceOnline operational layer
+
+This fork adds the missing building blocks the handover called for:
+
+- Runtime GitHub auth via `GITHUB_TOKEN`
+- Gmail helper scripts for search, message read, attachment download, reply, and labels
+- R2 upload support via AWS CLI
+- Git clone/push scripts for the PaceOnline site repos
+- `verify_setup.sh` for dependency and credential checks before cron is re-enabled
+
+On container start, `entrypoint.sh` copies the repo's `scripts/*.sh` files into `/data/workspace/scripts` so the OpenClaw agent can run a stable, versioned toolkit from the persistent workspace.
 
 ## How it works (high level)
 
@@ -83,6 +96,52 @@ docker run --rm -p 8080:8080 \
 
 # Setup wizard: http://localhost:8080/setup (password: test)
 # Web terminal: http://localhost:8080/tui (after setup)
+```
+
+## Railway variables for PaceOnline automation
+
+In addition to the normal OpenClaw variables, set these in Railway before turning automation back on:
+
+- `GITHUB_TOKEN`
+- `GITHUB_USERNAME` (optional)
+- `GIT_COMMIT_USER_NAME`
+- `GIT_COMMIT_USER_EMAIL`
+- `GMAIL_ACCOUNT`
+- `GMAIL_OAUTH_ENABLED=true`
+- `GCP_PROJECT_ID`
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+- `GOOGLE_REFRESH_TOKEN`
+- `R2_ACCESS_KEY_ID`
+- `R2_SECRET_ACCESS_KEY`
+- `R2_ENDPOINT`
+- `R2_ACCOUNT_ID`
+- `PACEONLINE_DRY_RUN=true` for the first verification pass
+
+## Helper scripts
+
+After boot, the following scripts are available in `/data/workspace/scripts`:
+
+- `gmail_check.sh`
+- `gmail_get_message.sh`
+- `gmail_download_attachment.sh`
+- `gmail_reply.sh`
+- `gmail_label.sh`
+- `r2_upload.sh`
+- `git_clone.sh`
+- `git_push.sh`
+- `verify_setup.sh`
+
+Recommended first run:
+
+```bash
+/data/workspace/scripts/verify_setup.sh
+```
+
+Recommended live-storage check after the read-only pass:
+
+```bash
+/data/workspace/scripts/verify_setup.sh --write-test
 ```
 
 ## FAQ

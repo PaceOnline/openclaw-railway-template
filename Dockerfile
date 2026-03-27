@@ -6,13 +6,16 @@ RUN apt-get update \
     curl \
     git \
     gosu \
+    jq \
     procps \
     python3 \
+    python3-pip \
     build-essential \
     zip \
   && rm -rf /var/lib/apt/lists/*
 
 RUN npm install -g openclaw@2026.3.13 clawhub@latest
+RUN pip3 install --no-cache-dir awscli
 
 WORKDIR /app
 
@@ -20,6 +23,7 @@ COPY package.json pnpm-lock.yaml ./
 RUN corepack enable && pnpm install --frozen-lockfile --prod
 
 COPY src ./src
+COPY scripts ./scripts
 COPY --chmod=755 entrypoint.sh ./entrypoint.sh
 
 RUN useradd -m -s /bin/bash openclaw \
