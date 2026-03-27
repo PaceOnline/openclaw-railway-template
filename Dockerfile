@@ -2,6 +2,7 @@ FROM node:22-bookworm
 
 RUN apt-get update \
   && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    awscli \
     ca-certificates \
     curl \
     git \
@@ -9,13 +10,11 @@ RUN apt-get update \
     jq \
     procps \
     python3 \
-    python3-pip \
     build-essential \
     zip \
   && rm -rf /var/lib/apt/lists/*
 
 RUN npm install -g openclaw@2026.3.13 clawhub@latest
-RUN pip3 install --no-cache-dir awscli
 
 WORKDIR /app
 
