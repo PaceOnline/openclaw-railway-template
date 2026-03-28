@@ -16,6 +16,8 @@ mkdir -p "${output_dir}"
 
 message_json="$(gmail_api GET "messages/${message_id}?format=full")"
 
+attachment_plan=""
+attachment_plan_status=0
 attachment_plan="$(
   GMAIL_MESSAGE_JSON="${message_json}" python3 - <<'PY'
 import json
@@ -52,7 +54,20 @@ for index, (filename, attachment_id) in enumerate(attachments, start=1):
     safe_name = sanitize_filename(filename)
     print(f"{index}\t{attachment_id}\t{index:02d}-{safe_name}")
 PY
-)" || die "No downloadable attachments found on Gmail message ${message_id}" 1
+)" || attachment_plan_status=$?
+
+case "${attachment_plan_status}" in
+  0)
+    ;;
+  3)
+    die "No downloadable attachments found on Gmail message ${message_id}" 1
+    ;;
+  *)
+    die "Failed to extract attachment info from Gmail message ${message_id}" 1
+    ;;
+esac
+
+[[ -n "${attachment_plan}" ]] || die "No downloadable attachments found on Gmail message ${message_id}" 1
 
 while IFS=$'\t' read -r attachment_index attachment_id target_name; do
   [[ -n "${attachment_id}" ]] || continue
