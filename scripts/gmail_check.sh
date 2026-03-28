@@ -5,7 +5,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"
 
 MAX_RESULTS="${1:-20}"
-QUERY="${2:-"(from:yetsagala.co.za OR from:harrygwaladm.gov.za OR from:enterpriseilembe.co.za OR from:isimangaliso.com) -label:Tickets/Handled has:attachment"}"
+DEFAULT_QUERY="{from:yetsagala.co.za from:harrygwaladm.gov.za from:enterpriseilembe.co.za from:isimangaliso.com} -label:Tickets/Handled has:attachment"
+QUERY="${2:-${DEFAULT_QUERY}}"
 
 require_cmd python3
 

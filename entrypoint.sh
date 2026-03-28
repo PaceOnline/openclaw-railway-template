@@ -23,6 +23,11 @@ if [ -d "${SCRIPT_SOURCE_DIR}" ]; then
   chmod 755 "${SCRIPT_TARGET_DIR}"/*.sh
 fi
 
+if [ -f "${SCRIPT_TARGET_DIR}/gmail_helper.sh" ]; then
+  cp -f "${SCRIPT_TARGET_DIR}/gmail_helper.sh" "${WORKSPACE_DIR}/gmail_helper.sh"
+  chmod 755 "${WORKSPACE_DIR}/gmail_helper.sh"
+fi
+
 chown -R openclaw:openclaw "${STATE_DIR}" "${WORKSPACE_DIR}" /data/repos
 
 gosu openclaw git config --global user.email "${GIT_COMMIT_USER_EMAIL:-support@paceonline.co.za}"

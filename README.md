@@ -122,6 +122,7 @@ In addition to the normal OpenClaw variables, set these in Railway before turnin
 
 After boot, the following scripts are available in `/data/workspace/scripts`:
 
+- `gmail_helper.sh`
 - `gmail_check.sh`
 - `gmail_get_message.sh`
 - `gmail_download_attachment.sh`
@@ -131,6 +132,8 @@ After boot, the following scripts are available in `/data/workspace/scripts`:
 - `git_clone.sh`
 - `git_push.sh`
 - `verify_setup.sh`
+
+For compatibility with agent guidance that sources a token helper directly from the workspace root, the container also copies `gmail_helper.sh` to `/data/workspace/gmail_helper.sh` on boot.
 
 Recommended first run:
 
