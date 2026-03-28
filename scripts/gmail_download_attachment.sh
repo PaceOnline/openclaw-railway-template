@@ -13,14 +13,17 @@ attachment_id="$2"
 output_path="$3"
 
 attachment_json="$(gmail_api GET "messages/${message_id}/attachments/${attachment_id}")"
+attachment_json_file="$(mktemp)"
+printf '%s' "${attachment_json}" > "${attachment_json_file}"
 
-printf '%s' "${attachment_json}" | python3 - "${output_path}" <<'PY'
+python3 - "${output_path}" "${attachment_json_file}" <<'PY'
 import base64
 import json
 import pathlib
 import sys
 
-data = json.load(sys.stdin)
+with open(sys.argv[2], "r", encoding="utf-8") as handle:
+    data = json.load(handle)
 raw = data.get("data", "")
 if not raw:
     raise SystemExit("Attachment payload was empty")
@@ -32,3 +35,5 @@ target.parent.mkdir(parents=True, exist_ok=True)
 target.write_bytes(content)
 print(str(target))
 PY
+
+rm -f "${attachment_json_file}"
