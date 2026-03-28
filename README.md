@@ -126,6 +126,7 @@ After boot, the following scripts are available in `/data/workspace/scripts`:
 - `gmail_check.sh`
 - `gmail_get_message.sh`
 - `gmail_download_attachment.sh`
+- `gmail_download_attachments.sh`
 - `gmail_reply.sh`
 - `gmail_label.sh`
 - `r2_upload.sh`
@@ -145,6 +146,12 @@ Recommended live-storage check after the read-only pass:
 
 ```bash
 /data/workspace/scripts/verify_setup.sh --write-test
+```
+
+To download every attachment on a Gmail message into a numbered local folder:
+
+```bash
+/data/workspace/scripts/gmail_download_attachments.sh <message_id> /data/workspace/tmp/message-files
 ```
 
 ## FAQ
