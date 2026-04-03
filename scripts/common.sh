@@ -161,6 +161,9 @@ public_url_for_bucket() {
     isimangaliso-media)
       printf '%s\n' "https://pub-77dfd32c2b4a41d3a61992ed7048ee22.r2.dev"
       ;;
+    hgda-media)
+      printf '%s\n' "https://pub-051dc6fdcb5949b8afa4135ab7ec3ce8.r2.dev"
+      ;;
     *)
       return 1
       ;;
