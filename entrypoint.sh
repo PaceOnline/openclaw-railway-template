@@ -28,6 +28,26 @@ if [ -f "${SCRIPT_TARGET_DIR}/gmail_helper.sh" ]; then
   chmod 755 "${WORKSPACE_DIR}/gmail_helper.sh"
 fi
 
+# Write env vars to a file so isolated cron sessions can access them
+ENV_FILE="${SCRIPT_TARGET_DIR}/.env"
+: > "${ENV_FILE}"
+for var in GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET GOOGLE_REFRESH_TOKEN \
+           GMAIL_ACCOUNT GCP_PROJECT_ID GMAIL_OAUTH_ENABLED \
+           R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_ENDPOINT R2_ACCOUNT_ID \
+           GITHUB_TOKEN GITHUB_USERNAME \
+           PACEONLINE_DRY_RUN \
+           GIT_COMMIT_USER_NAME GIT_COMMIT_USER_EMAIL; do
+  if [ -n "${!var:-}" ]; then
+    printf 'export %s=%q\n' "$var" "${!var}" >> "${ENV_FILE}"
+  fi
+done
+chmod 600 "${ENV_FILE}"
+
+# Also copy sites.json if present
+if [ -f "${SCRIPT_SOURCE_DIR}/sites.json" ]; then
+  cp -f "${SCRIPT_SOURCE_DIR}/sites.json" "${SCRIPT_TARGET_DIR}/sites.json"
+fi
+
 chown -R openclaw:openclaw "${STATE_DIR}" "${WORKSPACE_DIR}" /data/repos
 
 gosu openclaw git config --global user.email "${GIT_COMMIT_USER_EMAIL:-support@paceonline.co.za}"

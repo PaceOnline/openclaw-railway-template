@@ -4,6 +4,13 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
 
+# Source env vars written by entrypoint (needed for isolated cron sessions)
+if [[ -f "${SCRIPT_DIR}/.env" ]]; then
+  set -a
+  source "${SCRIPT_DIR}/.env"
+  set +a
+fi
+
 log() {
   printf '[paceonline] %s\n' "$*" >&2
 }
