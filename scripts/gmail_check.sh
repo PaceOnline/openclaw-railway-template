@@ -5,7 +5,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"
 
 MAX_RESULTS="${1:-20}"
-DEFAULT_QUERY="{from:yetsagala.co.za from:harrygwaladm.gov.za from:enterpriseilembe.co.za from:isimangaliso.com} -label:Tickets/Handled has:attachment"
+
+# Build default query dynamically from sites.json
+if [[ -z "${2:-}" ]] && [[ -f "${SCRIPT_DIR}/sites.json" ]]; then
+  domain_filter="$(all_email_domains)"
+  DEFAULT_QUERY="(${domain_filter}) -label:Tickets/Handled has:attachment"
+else
+  DEFAULT_QUERY="{from:yetsagala.co.za from:harrygwaladm.gov.za from:enterpriseilembe.co.za from:isimangaliso.com from:hgda.co.za} -label:Tickets/Handled has:attachment"
+fi
 QUERY="${2:-${DEFAULT_QUERY}}"
 
 require_cmd python3

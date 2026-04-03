@@ -148,26 +148,47 @@ prepare_aws_env() {
 }
 
 public_url_for_bucket() {
-  case "$1" in
-    bushbuckridge-media)
-      printf '%s\n' "https://pub-32ee4adabeb94626b9541908474f95ac.r2.dev"
-      ;;
-    hgdm-media)
-      printf '%s\n' "https://pub-695a3e550b5447e1ac8b4407ac18640e.r2.dev"
-      ;;
-    enterprise-ilembe-media)
-      printf '%s\n' "https://pub-4d38c8a570bf448385567016a572dacc.r2.dev"
-      ;;
-    isimangaliso-media)
-      printf '%s\n' "https://pub-77dfd32c2b4a41d3a61992ed7048ee22.r2.dev"
-      ;;
-    hgda-media)
-      printf '%s\n' "https://pub-051dc6fdcb5949b8afa4135ab7ec3ce8.r2.dev"
-      ;;
-    *)
-      return 1
-      ;;
-  esac
+  local bucket="$1"
+  local sites_file="${SCRIPT_DIR}/sites.json"
+  if [[ -f "${sites_file}" ]]; then
+    local url
+    url="$(python3 -c "
+import json, sys
+with open('${sites_file}') as f:
+    for s in json.load(f):
+        if s['r2Bucket'] == '${bucket}':
+            print(s['r2PublicUrl']); sys.exit(0)
+sys.exit(1)
+" 2>/dev/null)" && { printf '%s\n' "${url}"; return 0; }
+  fi
+  return 1
+}
+
+# Look up site config by email domain — returns JSON object for the matching site
+site_for_email_domain() {
+  local domain="$1"
+  local sites_file="${SCRIPT_DIR}/sites.json"
+  [[ -f "${sites_file}" ]] || return 1
+  python3 -c "
+import json, sys
+with open('${sites_file}') as f:
+    for s in json.load(f):
+        if s['emailDomain'].lstrip('@') == '${domain}'.lstrip('@'):
+            json.dump(s, sys.stdout); sys.exit(0)
+sys.exit(1)
+" 2>/dev/null
+}
+
+# List all email domains from sites.json (for Gmail search queries)
+all_email_domains() {
+  local sites_file="${SCRIPT_DIR}/sites.json"
+  [[ -f "${sites_file}" ]] || return 1
+  python3 -c "
+import json
+with open('${sites_file}') as f:
+    domains = [s['emailDomain'] for s in json.load(f)]
+print(' OR '.join(f'from:{d}' for d in domains))
+" 2>/dev/null
 }
 
 github_repo_url() {

@@ -1,0 +1,52 @@
+[
+  {
+    "id": "bbr",
+    "name": "Bushbuckridge Local Municipality",
+    "domain": "www.bushbuckridge.gov.za",
+    "emailDomain": "@yetsagala.co.za",
+    "r2Bucket": "bushbuckridge-media",
+    "r2PublicUrl": "https://pub-32ee4adabeb94626b9541908474f95ac.r2.dev",
+    "gitRepo": "PaceOnline/bbr",
+    "repoDir": "bbr"
+  },
+  {
+    "id": "hgdm",
+    "name": "Harry Gwala District Municipality",
+    "domain": "www.harrygwaladm.gov.za",
+    "emailDomain": "@harrygwaladm.gov.za",
+    "r2Bucket": "hgdm-media",
+    "r2PublicUrl": "https://pub-695a3e550b5447e1ac8b4407ac18640e.r2.dev",
+    "gitRepo": "PaceOnline/Harry-Gwala-Municipality",
+    "repoDir": "Harry-Gwala-Municipality"
+  },
+  {
+    "id": "ilembe",
+    "name": "Enterprise iLembe",
+    "domain": "www.enterpriseilembe.co.za",
+    "emailDomain": "@enterpriseilembe.co.za",
+    "r2Bucket": "enterprise-ilembe-media",
+    "r2PublicUrl": "https://pub-4d38c8a570bf448385567016a572dacc.r2.dev",
+    "gitRepo": "PaceOnline/ilembe",
+    "repoDir": "ilembe"
+  },
+  {
+    "id": "isimangaliso",
+    "name": "iSimangaliso Wetland Park Authority",
+    "domain": "www.isimangaliso.com",
+    "emailDomain": "@isimangaliso.com",
+    "r2Bucket": "isimangaliso-media",
+    "r2PublicUrl": "https://pub-77dfd32c2b4a41d3a61992ed7048ee22.r2.dev",
+    "gitRepo": "PaceOnline/iSimangaliso",
+    "repoDir": "iSimangaliso"
+  },
+  {
+    "id": "hgda",
+    "name": "Harry Gwala Development Agency",
+    "domain": "www.hgda.co.za",
+    "emailDomain": "@hgda.co.za",
+    "r2Bucket": "hgda-media",
+    "r2PublicUrl": "https://pub-051dc6fdcb5949b8afa4135ab7ec3ce8.r2.dev",
+    "gitRepo": "PaceOnline/Harry-Gwala-Agency",
+    "repoDir": "Harry-Gwala-Agency"
+  }
+]
