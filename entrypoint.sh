@@ -5,6 +5,7 @@ STATE_DIR="${OPENCLAW_STATE_DIR:-/data/.openclaw}"
 WORKSPACE_DIR="${OPENCLAW_WORKSPACE_DIR:-/data/workspace}"
 SCRIPT_SOURCE_DIR="/app/scripts"
 SCRIPT_TARGET_DIR="${WORKSPACE_DIR}/scripts"
+WORKSPACE_SOURCE_DIR="/app/workspace"
 
 chown -R openclaw:openclaw /data
 chmod 700 /data
@@ -19,13 +20,30 @@ ln -sfn /data/.linuxbrew /home/linuxbrew/.linuxbrew
 mkdir -p "${STATE_DIR}" "${WORKSPACE_DIR}" "${SCRIPT_TARGET_DIR}" /data/repos
 
 if [ -d "${SCRIPT_SOURCE_DIR}" ]; then
-  cp -f "${SCRIPT_SOURCE_DIR}"/*.sh "${SCRIPT_TARGET_DIR}/"
-  chmod 755 "${SCRIPT_TARGET_DIR}"/*.sh
+  while IFS= read -r -d '' source_file; do
+    target_file="${SCRIPT_TARGET_DIR}/$(basename "${source_file}")"
+    cp -f "${source_file}" "${target_file}"
+    case "${target_file}" in
+      *.sh|*.py)
+        chmod 755 "${target_file}"
+        ;;
+    esac
+  done < <(find "${SCRIPT_SOURCE_DIR}" -maxdepth 1 -type f \
+    \( -name "*.sh" -o -name "*.py" -o -name "*.json" \) -print0)
 fi
 
 if [ -f "${SCRIPT_TARGET_DIR}/gmail_helper.sh" ]; then
   cp -f "${SCRIPT_TARGET_DIR}/gmail_helper.sh" "${WORKSPACE_DIR}/gmail_helper.sh"
   chmod 755 "${WORKSPACE_DIR}/gmail_helper.sh"
+fi
+
+if [ -d "${WORKSPACE_SOURCE_DIR}" ]; then
+  while IFS= read -r -d '' source_file; do
+    relative_path="${source_file#${WORKSPACE_SOURCE_DIR}/}"
+    target_file="${WORKSPACE_DIR}/${relative_path}"
+    mkdir -p "$(dirname "${target_file}")"
+    cp -f "${source_file}" "${target_file}"
+  done < <(find "${WORKSPACE_SOURCE_DIR}" -type f -print0)
 fi
 
 # Write env vars to a file so isolated cron sessions can access them
@@ -42,11 +60,6 @@ for var in GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET GOOGLE_REFRESH_TOKEN \
   fi
 done
 chmod 600 "${ENV_FILE}"
-
-# Also copy sites.json if present
-if [ -f "${SCRIPT_SOURCE_DIR}/sites.json" ]; then
-  cp -f "${SCRIPT_SOURCE_DIR}/sites.json" "${SCRIPT_TARGET_DIR}/sites.json"
-fi
 
 chown -R openclaw:openclaw "${STATE_DIR}" "${WORKSPACE_DIR}" /data/repos
 

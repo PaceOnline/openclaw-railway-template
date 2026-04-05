@@ -13,6 +13,7 @@
 - Optional **Web Terminal** at `/tui` for browser-based TUI access
 - Persistent state via **Railway Volume** (so config/credentials/memory survive redeploys)
 - A synced PaceOnline `scripts/` toolkit inside `/data/workspace/scripts`
+- A synced PaceOnline workspace guide at `/data/workspace/AGENTS.md`
 
 ## PaceOnline operational layer
 
@@ -24,7 +25,7 @@ This fork adds the missing building blocks the handover called for:
 - Git clone/push scripts for the PaceOnline site repos
 - `verify_setup.sh` for dependency and credential checks before cron is re-enabled
 
-On container start, `entrypoint.sh` copies the repo's `scripts/*.sh` files into `/data/workspace/scripts` so the OpenClaw agent can run a stable, versioned toolkit from the persistent workspace.
+On container start, `entrypoint.sh` copies the repo's `scripts/` toolkit and bundled `workspace/` guidance into `/data/workspace` so the OpenClaw agent can run stable, versioned tooling and read the current website-maintenance rules from the persistent workspace.
 
 ## How it works (high level)
 
@@ -132,6 +133,8 @@ After boot, the following scripts are available in `/data/workspace/scripts`:
 - `r2_upload.sh`
 - `git_clone.sh`
 - `git_push.sh`
+- `process_email.sh`
+- `site_lookup.py`
 - `verify_setup.sh`
 
 For compatibility with agent guidance that sources a token helper directly from the workspace root, the container also copies `gmail_helper.sh` to `/data/workspace/gmail_helper.sh` on boot.

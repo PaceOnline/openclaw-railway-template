@@ -14,9 +14,6 @@ object_key="$3"
 
 [[ -f "${local_file}" ]] || die "Local file not found: ${local_file}" 1
 
-require_cmd aws
-prepare_aws_env
-
 public_url="$(public_url_for_bucket "${bucket_name}")" || die "Unknown R2 bucket: ${bucket_name}" 1
 
 if is_dry_run; then
@@ -24,6 +21,9 @@ if is_dry_run; then
   printf '%s\n' "${public_url}/${object_key}"
   exit 0
 fi
+
+require_cmd aws
+prepare_aws_env
 
 aws s3 cp "${local_file}" "s3://${bucket_name}/${object_key}" \
   --endpoint-url "${R2_ENDPOINT}" \
