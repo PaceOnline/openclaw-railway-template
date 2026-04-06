@@ -118,6 +118,42 @@ const GATEWAY_TARGET = `http://${INTERNAL_GATEWAY_HOST}:${INTERNAL_GATEWAY_PORT}
 const OPENCLAW_ENTRY =
   process.env.OPENCLAW_ENTRY?.trim() || "/openclaw/dist/entry.js";
 const OPENCLAW_NODE = process.env.OPENCLAW_NODE?.trim() || "node";
+const CRON_STORE_PATH = path.join(STATE_DIR, "cron", "jobs.json");
+const EMAIL_CONTENT_CHECK_JOB_NAME = "Email Content Check";
+const EMAIL_CONTENT_CHECK_DESCRIPTION = "Check for unhandled client emails every 2 hours";
+const EMAIL_CONTENT_CHECK_INTERVAL_MS = 2 * 60 * 60 * 1000;
+const EMAIL_CONTENT_CHECK_PROMPT = `
+You are the PaceOnline content management bot. Process at most one email per run.
+
+Rules:
+- Your first action must be the exact shell command below.
+- Do not claim "No new content requests." unless that command returned status "no_messages".
+- Do not reply to skipped emails.
+- Replies must use website URLs, never raw R2 URLs.
+- If a shell command fails, stop and report the real failure instead of inventing a result.
+
+First command:
+bash -lc 'cd /data/workspace && scripts/run_email_content_check.sh'
+
+Interpret the JSON result:
+- status=no_messages: reply exactly "No new content requests." and stop.
+- status=skipped_no_publishable_attachments: report the skipped email and stop. The script already labeled it handled. Do not reply to the client.
+- status=ready: continue the workflow for that one message only.
+
+For status=ready:
+1. Read the JSON paths returned by the script, especially workRoot, processResultPath, and processResult.
+2. Read the email subject/body and uploaded file metadata from those paths.
+3. Decide the content type, then run python3 scripts/site_lookup.py --sender "<senderEmail>" --content-type "<type>" --pretty.
+4. Open the repo guidance files returned by that lookup or listed in repoGuidanceCandidates.
+5. Check the target file and the live website route for duplicates before editing.
+6. If the content is already live, add Tickets/Handled to the Gmail message and stop with no reply.
+7. If the content is new, edit only the correct repo and push with scripts/git_push.sh.
+8. Verify the live website URL in a headed browser before replying.
+9. Reply in the original thread with the website URL where the content now lives.
+10. Add Tickets/Handled and remove Tickets/Ongoing.
+
+Never publish @hgda.co.za content into HGDM or send harrygwaladm.gov.za URLs for HGDA.
+`.trim();
 
 const ENABLE_WEB_TUI = process.env.ENABLE_WEB_TUI?.toLowerCase() === "true";
 const TUI_IDLE_TIMEOUT_MS = Number.parseInt(
@@ -167,6 +203,161 @@ async function syncAllowedOrigins() {
     log.info("gateway", `set allowedOrigins to [${origin}]`);
   } else {
     log.warn("gateway", `failed to set allowedOrigins (exit=${result.code})`);
+  }
+}
+
+async function setOpenClawConfig(configKey, value, opts = {}) {
+  const args = ["config", "set"];
+  if (opts.json === true) {
+    args.push("--json");
+  }
+  args.push(configKey, value);
+  const result = await runCmd(OPENCLAW_NODE, clawArgs(args));
+  const mode = opts.json === true ? "json" : "string";
+  log.info(
+    "config-sync",
+    `${configKey} (${mode}) exit=${result.code}${result.code === 0 ? "" : ` output=${result.output.trim()}`}`,
+  );
+  return result;
+}
+
+async function syncGatewayBootstrapConfig() {
+  if (!isConfigured()) return;
+
+  await setOpenClawConfig("gateway.controlUi.allowInsecureAuth", "true");
+  if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+    await setOpenClawConfig("gateway.controlUi.dangerouslyDisableDeviceAuth", "true");
+  }
+  await setOpenClawConfig("gateway.auth.token", OPENCLAW_GATEWAY_TOKEN);
+  await setOpenClawConfig("gateway.trustedProxies", JSON.stringify(["127.0.0.1"]), {
+    json: true,
+  });
+}
+
+function parseJsonFile(filePath, fallbackValue) {
+  try {
+    const raw = fs.readFileSync(filePath, "utf8");
+    return JSON.parse(raw);
+  } catch (err) {
+    if (err.code === "ENOENT") {
+      return fallbackValue;
+    }
+    throw err;
+  }
+}
+
+function writeJsonFile(filePath, value) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, JSON.stringify(value, null, 2), {
+    encoding: "utf8",
+    mode: 0o600,
+  });
+}
+
+function cronPayloadForEmailContentJob(job) {
+  const payload = {
+    kind: "agentTurn",
+    message: EMAIL_CONTENT_CHECK_PROMPT,
+    lightContext: true,
+    timeoutSeconds: 1200,
+  };
+  const existingModel =
+    typeof job?.payload?.model === "string" && job.payload.model.trim()
+      ? job.payload.model.trim()
+      : undefined;
+  if (existingModel) {
+    payload.model = existingModel;
+  }
+  return payload;
+}
+
+function syncCronJobObject(job) {
+  let changed = false;
+  const nextPayload = cronPayloadForEmailContentJob(job);
+  const nextSchedule = {
+    kind: "every",
+    everyMs: EMAIL_CONTENT_CHECK_INTERVAL_MS,
+    anchorMs:
+      typeof job?.schedule?.anchorMs === "number" && Number.isFinite(job.schedule.anchorMs)
+        ? job.schedule.anchorMs
+        : Date.now(),
+  };
+
+  const assign = (key, value) => {
+    if (JSON.stringify(job[key]) !== JSON.stringify(value)) {
+      job[key] = value;
+      changed = true;
+    }
+  };
+
+  assign("name", EMAIL_CONTENT_CHECK_JOB_NAME);
+  assign("description", EMAIL_CONTENT_CHECK_DESCRIPTION);
+  assign("enabled", true);
+  assign("sessionTarget", "isolated");
+  assign("wakeMode", "now");
+  assign("schedule", nextSchedule);
+  assign("payload", nextPayload);
+
+  if (changed) {
+    job.updatedAtMs = Date.now();
+  }
+  return changed;
+}
+
+async function syncEmailContentCronJob() {
+  let store;
+  try {
+    store = parseJsonFile(CRON_STORE_PATH, { version: 1, jobs: [] });
+  } catch (err) {
+    log.error("cron-sync", `failed to read cron store: ${err.message}`);
+    return { ok: false, reason: "read_failed" };
+  }
+
+  if (!store || typeof store !== "object" || !Array.isArray(store.jobs)) {
+    log.warn("cron-sync", `cron store missing jobs array at ${CRON_STORE_PATH}`);
+    return { ok: false, reason: "invalid_store" };
+  }
+
+  let job = store.jobs.find((entry) => entry?.name === EMAIL_CONTENT_CHECK_JOB_NAME);
+  let changed = false;
+
+  if (!job) {
+    job = {
+      id: crypto.randomUUID(),
+      name: EMAIL_CONTENT_CHECK_JOB_NAME,
+      description: EMAIL_CONTENT_CHECK_DESCRIPTION,
+      enabled: true,
+      deleteAfterRun: false,
+      createdAtMs: Date.now(),
+      updatedAtMs: Date.now(),
+      schedule: {
+        kind: "every",
+        everyMs: EMAIL_CONTENT_CHECK_INTERVAL_MS,
+        anchorMs: Date.now(),
+      },
+      sessionTarget: "isolated",
+      wakeMode: "now",
+      payload: cronPayloadForEmailContentJob(null),
+    };
+    store.jobs.push(job);
+    changed = true;
+    log.warn("cron-sync", "Email Content Check job was missing; created a new job without delivery settings.");
+  } else if (syncCronJobObject(job)) {
+    changed = true;
+  }
+
+  if (!changed) {
+    log.info("cron-sync", "Email Content Check job already matches the deterministic workflow.");
+    return { ok: true, changed: false, jobId: job.id };
+  }
+
+  try {
+    writeJsonFile(CRON_STORE_PATH, store);
+    log.info("cron-sync", `wrote deterministic Email Content Check job to ${CRON_STORE_PATH}`);
+    return { ok: true, changed: true, jobId: job.id };
+  } catch (err) {
+    log.error("cron-sync", `failed to write cron store: ${err.message}`);
+    return { ok: false, reason: "write_failed" };
   }
 }
 
@@ -275,7 +466,9 @@ async function ensureGatewayRunning() {
   if (gatewayProc) return { ok: true };
   if (!gatewayStarting) {
     gatewayStarting = (async () => {
+      await syncGatewayBootstrapConfig();
       await syncAllowedOrigins();
+      await syncEmailContentCronJob();
       await startGateway();
       const ready = await waitForGatewayReady({ timeoutMs: 60_000 });
       if (!ready) {
@@ -666,40 +859,10 @@ app.post("/setup/api/run", requireSetupAuth, async (req, res) => {
 
     if (ok) {
       extra += "\n[setup] Configuring gateway settings...\n";
-
-      const allowInsecureResult = await runCmd(
-        OPENCLAW_NODE,
-        clawArgs([
-          "config",
-          "set",
-          "gateway.controlUi.allowInsecureAuth",
-          "true",
-        ]),
-      );
-      extra += `[config] gateway.controlUi.allowInsecureAuth=true exit=${allowInsecureResult.code}\n`;
-
-      const tokenResult = await runCmd(
-        OPENCLAW_NODE,
-        clawArgs([
-          "config",
-          "set",
-          "gateway.auth.token",
-          OPENCLAW_GATEWAY_TOKEN,
-        ]),
-      );
-      extra += `[config] gateway.auth.token exit=${tokenResult.code}\n`;
-
-      const proxiesResult = await runCmd(
-        OPENCLAW_NODE,
-        clawArgs([
-          "config",
-          "set",
-          "--json",
-          "gateway.trustedProxies",
-          '["127.0.0.1"]',
-        ]),
-      );
-      extra += `[config] gateway.trustedProxies exit=${proxiesResult.code}\n`;
+      await syncGatewayBootstrapConfig();
+      const cronSync = await syncEmailContentCronJob();
+      extra += "[config] synced gateway bootstrap config\n";
+      extra += `[cron] sync ok=${cronSync.ok} changed=${cronSync.changed === true}\n`;
 
       if (payload.model?.trim()) {
         extra += `[setup] Setting model to ${payload.model.trim()}...\n`;

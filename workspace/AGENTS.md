@@ -22,6 +22,12 @@ OpenClaw maintains five public websites from Gmail content requests sent to `sup
 
 ## Required Workflow
 
+For cron-triggered runs, start with `scripts/run_email_content_check.sh`. It will:
+
+- return `status=no_messages` when there is nothing to do
+- return `status=skipped_no_publishable_attachments` after labeling signature-only emails handled
+- return `status=ready` with the selected message and `processResultPath` for the one email you should finish
+
 For every candidate message:
 
 1. Run `scripts/process_email.sh <message_id>`.
