@@ -261,6 +261,87 @@ function writeJsonFile(filePath, value) {
   });
 }
 
+function restoreArchivedSessionTranscripts() {
+  const agentsDir = path.join(STATE_DIR, "agents");
+  if (!fs.existsSync(agentsDir)) {
+    return { restored: 0, scanned: 0 };
+  }
+
+  let restored = 0;
+  let scanned = 0;
+
+  for (const agentName of fs.readdirSync(agentsDir, { withFileTypes: true })) {
+    if (!agentName.isDirectory()) continue;
+
+    const sessionsDir = path.join(agentsDir, agentName.name, "sessions");
+    const sessionsIndexPath = path.join(sessionsDir, "sessions.json");
+    if (!fs.existsSync(sessionsIndexPath)) continue;
+
+    let store;
+    try {
+      store = parseJsonFile(sessionsIndexPath, {});
+    } catch (err) {
+      log.warn("session-repair", `failed to parse ${sessionsIndexPath}: ${err.message}`);
+      continue;
+    }
+
+    if (!store || typeof store !== "object") continue;
+
+    const archivedFiles = new Map();
+    for (const entry of fs.readdirSync(sessionsDir, { withFileTypes: true })) {
+      if (!entry.isFile()) continue;
+      const match = entry.name.match(
+        /^([0-9a-f-]+)\.jsonl\.(deleted|reset)\.(.+)$/,
+      );
+      if (!match) continue;
+      const sessionId = match[1];
+      const candidatePath = path.join(sessionsDir, entry.name);
+      const stat = fs.statSync(candidatePath);
+      const current = archivedFiles.get(sessionId);
+      if (!current || stat.mtimeMs > current.mtimeMs) {
+        archivedFiles.set(sessionId, { path: candidatePath, mtimeMs: stat.mtimeMs });
+      }
+    }
+
+    for (const session of Object.values(store)) {
+      const sessionId =
+        typeof session?.sessionId === "string" ? session.sessionId.trim() : "";
+      if (!sessionId) continue;
+      scanned += 1;
+
+      const transcriptPath = path.join(sessionsDir, `${sessionId}.jsonl`);
+      if (fs.existsSync(transcriptPath)) continue;
+
+      const archived = archivedFiles.get(sessionId);
+      if (!archived) continue;
+
+      try {
+        fs.copyFileSync(archived.path, transcriptPath);
+        restored += 1;
+      } catch (err) {
+        log.warn(
+          "session-repair",
+          `failed to restore transcript for ${sessionId}: ${err.message}`,
+        );
+      }
+    }
+  }
+
+  if (restored > 0) {
+    log.info(
+      "session-repair",
+      `restored ${restored} archived session transcript(s) across ${scanned} indexed session(s)`,
+    );
+  } else {
+    log.info(
+      "session-repair",
+      `no archived session transcripts needed restoration across ${scanned} indexed session(s)`,
+    );
+  }
+
+  return { restored, scanned };
+}
+
 function cronPayloadForEmailContentJob(job) {
   const payload = {
     kind: "agentTurn",
@@ -473,6 +554,7 @@ async function ensureGatewayRunning() {
   if (gatewayProc) return { ok: true };
   if (!gatewayStarting) {
     gatewayStarting = (async () => {
+      restoreArchivedSessionTranscripts();
       await syncGatewayBootstrapConfig();
       await syncAllowedOrigins();
       await syncEmailContentCronJob();
@@ -1376,6 +1458,7 @@ const server = app.listen(PORT, () => {
   if (isConfigured()) {
     (async () => {
       try {
+        restoreArchivedSessionTranscripts();
         log.info("wrapper", "running openclaw doctor --fix...");
         const dr = await runCmd(OPENCLAW_NODE, clawArgs(["doctor", "--fix"]));
         log.info("wrapper", `doctor --fix exit=${dr.code}`);
