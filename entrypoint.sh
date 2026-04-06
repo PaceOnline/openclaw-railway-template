@@ -1,73 +1,31 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
-STATE_DIR="${OPENCLAW_STATE_DIR:-/data/.openclaw}"
-WORKSPACE_DIR="${OPENCLAW_WORKSPACE_DIR:-/data/workspace}"
-SCRIPT_SOURCE_DIR="/app/scripts"
-SCRIPT_TARGET_DIR="${WORKSPACE_DIR}/scripts"
-WORKSPACE_SOURCE_DIR="/app/workspace"
+rm -rf /data/.openclaw /data/workspace /data/repos || true
+mkdir -p /tmp/openclaw-removed
 
-chown -R openclaw:openclaw /data
-chmod 700 /data
+exec node <<'NODE'
+const http = require("http");
 
-if [ ! -d /data/.linuxbrew ]; then
-  cp -a /home/linuxbrew/.linuxbrew /data/.linuxbrew
-fi
+const port = Number(process.env.PORT || 8080);
+const goneBody = "OpenClaw has been removed.\n";
+const healthBody = JSON.stringify({ ok: true, removed: true });
 
-rm -rf /home/linuxbrew/.linuxbrew
-ln -sfn /data/.linuxbrew /home/linuxbrew/.linuxbrew
+http
+  .createServer((req, res) => {
+    const url = req.url || "/";
+    if (url === "/healthz" || url === "/setup/healthz") {
+      res.statusCode = 200;
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      res.end(healthBody);
+      return;
+    }
 
-mkdir -p "${STATE_DIR}" "${WORKSPACE_DIR}" "${SCRIPT_TARGET_DIR}" /data/repos
-
-if [ -d "${SCRIPT_SOURCE_DIR}" ]; then
-  while IFS= read -r -d '' source_file; do
-    target_file="${SCRIPT_TARGET_DIR}/$(basename "${source_file}")"
-    cp -f "${source_file}" "${target_file}"
-    case "${target_file}" in
-      *.sh|*.py)
-        chmod 755 "${target_file}"
-        ;;
-    esac
-  done < <(find "${SCRIPT_SOURCE_DIR}" -maxdepth 1 -type f \
-    \( -name "*.sh" -o -name "*.py" -o -name "*.json" \) -print0)
-fi
-
-if [ -f "${SCRIPT_TARGET_DIR}/gmail_helper.sh" ]; then
-  cp -f "${SCRIPT_TARGET_DIR}/gmail_helper.sh" "${WORKSPACE_DIR}/gmail_helper.sh"
-  chmod 755 "${WORKSPACE_DIR}/gmail_helper.sh"
-fi
-
-if [ -d "${WORKSPACE_SOURCE_DIR}" ]; then
-  while IFS= read -r -d '' source_file; do
-    relative_path="${source_file#${WORKSPACE_SOURCE_DIR}/}"
-    target_file="${WORKSPACE_DIR}/${relative_path}"
-    mkdir -p "$(dirname "${target_file}")"
-    cp -f "${source_file}" "${target_file}"
-  done < <(find "${WORKSPACE_SOURCE_DIR}" -type f -print0)
-fi
-
-# Write env vars to a file so isolated cron sessions can access them
-ENV_FILE="${SCRIPT_TARGET_DIR}/.env"
-: > "${ENV_FILE}"
-for var in GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET GOOGLE_REFRESH_TOKEN \
-           GMAIL_ACCOUNT GCP_PROJECT_ID GMAIL_OAUTH_ENABLED \
-           R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_ENDPOINT R2_ACCOUNT_ID \
-           GITHUB_TOKEN GITHUB_USERNAME \
-           PACEONLINE_DRY_RUN \
-           GIT_COMMIT_USER_NAME GIT_COMMIT_USER_EMAIL; do
-  if [ -n "${!var:-}" ]; then
-    printf 'export %s=%q\n' "$var" "${!var}" >> "${ENV_FILE}"
-  fi
-done
-chmod 600 "${ENV_FILE}"
-
-chown -R openclaw:openclaw "${STATE_DIR}" "${WORKSPACE_DIR}" /data/repos
-
-gosu openclaw git config --global user.email "${GIT_COMMIT_USER_EMAIL:-support@paceonline.co.za}"
-gosu openclaw git config --global user.name "${GIT_COMMIT_USER_NAME:-PaceOnline Bot}"
-gosu openclaw git config --global init.defaultBranch main
-gosu openclaw git config --global credential.useHttpPath true
-gosu openclaw git config --global credential.helper \
-  '!f() { test "$1" = get || exit 0; if [ -n "${GITHUB_USERNAME:-}" ]; then echo "username=${GITHUB_USERNAME}"; else echo "username=x-access-token"; fi; if [ -n "${GITHUB_TOKEN:-}" ]; then echo "password=${GITHUB_TOKEN}"; fi; }; f'
-
-exec gosu openclaw node src/server.js
+    res.statusCode = 410;
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.end(goneBody);
+  })
+  .listen(port, "0.0.0.0", () => {
+    console.log(`OpenClaw removed server listening on ${port}`);
+  });
+NODE
