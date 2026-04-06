@@ -1340,7 +1340,7 @@ app.use(async (req, res) => {
   }
 
   if (req.path === "/openclaw" && !req.query.token) {
-    return res.redirect(`/openclaw?token=${OPENCLAW_GATEWAY_TOKEN}`);
+    return res.redirect(`/openclaw#token=${encodeURIComponent(OPENCLAW_GATEWAY_TOKEN)}`);
   }
 
   return proxy.web(req, res, { target: GATEWAY_TARGET });
