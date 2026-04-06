@@ -24,6 +24,13 @@ const LOG_RING_BUFFER_MAX = 1000;
 const MAX_LOG_FILE_SIZE = 5 * 1024 * 1024;
 const logRingBuffer = [];
 const sseClients = new Set();
+const OPENCLAW_FAVICON_SVG = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="OpenClaw">
+  <rect width="64" height="64" rx="14" fill="#101828"/>
+  <text x="50%" y="53%" text-anchor="middle" dominant-baseline="middle"
+    font-family="ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+    font-size="34" fill="#f97316">OC</text>
+</svg>`;
 
 function writeLog(level, category, message) {
   const timestamp = new Date().toISOString();
@@ -568,6 +575,18 @@ app.use(express.json({ limit: "1mb" }));
 
 app.get("/styles.css", (_req, res) => {
   res.sendFile(path.join(process.cwd(), "src", "public", "styles.css"));
+});
+
+app.get("/openclaw/__openclaw/control-ui-config.json", (_req, res) => {
+  res.json({});
+});
+
+app.get("/openclaw/favicon.svg", (_req, res) => {
+  res.type("image/svg+xml").send(OPENCLAW_FAVICON_SVG);
+});
+
+app.get("/openclaw/favicon-32.png", (_req, res) => {
+  res.redirect(302, "/openclaw/favicon.svg");
 });
 
 app.get("/healthz", async (_req, res) => {
